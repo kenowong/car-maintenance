@@ -1,5 +1,5 @@
 // 车管家 PWA 离线缓存：让手机独立使用时可离线打开、可"添加到主屏幕"当 APP 用
-const CACHE = 'carcare-v3';
+const CACHE = 'carcare-v4';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
