@@ -8,7 +8,8 @@ def run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, cwd=BASE, **kw)
 
 def get_token(host):
-    p = run(["git", "credential", "get"], input=f"protocol=https\nhost={host}\n")
+    GM = r"C:/Users/OFFICE/.workbuddy/binaries/PortableGit/versions/1.2.0/mingw64/bin/git-credential-manager.exe"
+    p = subprocess.run([GM, "get"], input=f"protocol=https\nhost={host}\n", capture_output=True, text=True)
     for line in p.stdout.splitlines():
         if line.startswith("password="):
             return line.split("=", 1)[1].strip()
