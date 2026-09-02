@@ -1,0 +1,18 @@
+# 车管家 · QNAP Container Station 部署（Compose V2）
+# 适用场景：NAS 能正常拉取镜像时（你当前 DNS 超时拉不了，请用 start.sh 直接 Python 方案）。
+# Container Station 3.x 用「docker compose」（带空格）。应用与数据分离：
+#   应用代码 -> ./:/app  数据 -> ./data:/app/data（落 CACHEDEV1，restart 生效无需重建镜像）
+version: "3.8"
+services:
+  carcare:
+    image: python:3.12-slim
+    container_name: carcare
+    restart: unless-stopped
+    working_dir: /app
+    command: python3 /app/app.py
+    ports:
+      - "8143:8143"
+    volumes:
+      - ./:/app
+    environment:
+      - PORT=8143
