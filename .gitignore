@@ -8,3 +8,7 @@ __pycache__/
 *.pyc
 # 临时分析产物
 _video_frames/
+data/
+.workbuddy/
+data/
+.workbuddy/
