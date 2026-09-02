@@ -53,6 +53,17 @@
   .card .meta{color:var(--sub);font-size:12px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .item-bill{margin:6px 0 2px}
+  .cat-items-wrap{margin:2px 0 4px}
+  .cat-items-head{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;user-select:none;background:#f4f6f9;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-weight:600;font-size:14px}
+  .cat-items-head:active{background:#ebeef2}
+  .cat-items-head .right{display:flex;align-items:center;gap:8px}
+  .cat-items-head .cnt{font-weight:500;font-size:12px;color:#1f6feb;background:#e8f0fe;padding:2px 9px;border-radius:20px;white-space:nowrap}
+  .cat-items-head .arrow{color:#6b7785;transition:transform .2s;font-size:13px;line-height:1}
+  .cat-items-wrap.collapsed .arrow{transform:rotate(-90deg)}
+  .cat-items-body{max-height:42vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 2px 6px;border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;background:#fff}
+  .cat-items-wrap.collapsed .cat-items-body{display:none}
+  .cat-items-body .chk{margin:0;padding:9px 11px;border-bottom:1px solid #eef1f5}
+  .cat-items-body .chk:last-child{border-bottom:none}
   .bill-row{border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:8px;background:#fff}
   .bill-row .bn{font-weight:600;font-size:14px;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .bill-row .bn .last{font-weight:500;font-size:11px;color:#6b7785;background:#f1f4f8;padding:2px 7px;border-radius:20px}
@@ -163,8 +174,13 @@
         <div class="muted">选择服务类别与项目，一键登记。登记后可自动更新对应提醒。</div>
         <label>服务类别</label>
         <div class="cat-tabs" id="catTabs"></div>
-        <label>具体项目（可多选，按项目单独计费）</label>
-        <div id="catItems"></div>
+        <div class="cat-items-wrap" id="catItemsWrap">
+          <div class="cat-items-head" onclick="toggleItems()">
+            <span>具体项目（可多选，按项目单独计费）</span>
+            <span class="right"><span class="cnt" id="catItemsCnt">已选 0</span><span class="arrow">▾</span></span>
+          </div>
+          <div class="cat-items-body"><div id="catItems"></div></div>
+        </div>
         <div class="row" style="margin:8px 0 4px">
           <input id="customItem" placeholder="例如：四轮定位、加玻璃水…">
           <button class="btn ghost" type="button" onclick="addCustomItem()">添加</button>
@@ -415,8 +431,11 @@ function renderCatTabs(){
 }
 function pickCat(c){curCat=c;curBill={};customNames=[];renderCatTabs();renderItemBill();}
 function renderCatItems(){
-  document.getElementById('catItems').innerHTML=CATALOG[curCat].map(it=>`<label class="chk"><input type="checkbox" value="${esc(it)}" onchange="renderItemBill()"><span>${esc(it)}</span></label>`).join('');
+  document.getElementById('catItems').innerHTML=CATALOG[curCat].map(it=>`<label class="chk"><input type="checkbox" value="${esc(it)}" onchange="renderItemBill();updateItemCount()"><span>${esc(it)}</span></label>`).join('');
+  updateItemCount();
 }
+function toggleItems(){const w=document.getElementById('catItemsWrap');if(w)w.classList.toggle('collapsed');}
+function updateItemCount(){const n=[...document.querySelectorAll('#catItems input:checked')].length;const el=document.getElementById('catItemsCnt');if(el)el.textContent='已选 '+n;}
 function selectedNames(){
   const checked=[...document.querySelectorAll('#catItems input:checked')].map(i=>i.value);
   return checked.concat(customNames.filter(n=>!checked.includes(n)));
