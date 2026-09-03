@@ -357,13 +357,7 @@ function fmt(n){return (n||0).toLocaleString('zh-CN',{maximumFractionDigits:2})}
 function money(n){return '¥'+fmt(n)}
 function esc(s){s=s==null?'':s;return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 
-async function detectMode(){
-  try{
-    const r=await fetch('/api/health',{signal:AbortSignal.timeout(800)});
-    if(r.ok){MODE='nas';return}
-  }catch(e){}
-  MODE='local';
-}
+async function detectMode(){ MODE='local'; /* 离线独立版：不探测服务器，始终本机存储 */ }
 async function load(){
   if(MODE==='nas'){
     try{
@@ -688,7 +682,7 @@ function renderFinance(){
 
 /* ============ 设置 ============ */
 function renderSettings(){
-  document.getElementById('setMode').textContent=MODE==='nas'?'NAS 服务器（多人共享）':'本机浏览器（独立使用）';
+  document.getElementById('setMode').textContent='本机独立存储（不连任何服务器）';
   document.getElementById('setVeh').textContent=DB.vehicles.length;
   document.getElementById('pushToggle').checked=!!DB.settings.push;
   document.getElementById('ruleList').innerHTML=DB.rules.length?DB.rules.map(r=>{
@@ -907,9 +901,9 @@ function renderAll(){refreshVehicleSelect();renderReminders();renderArchive();re
 async function init(){
   await detectMode();
   const badge=document.getElementById('modeBadge');
-  badge.textContent=MODE==='nas'?'数据·NAS':'数据·本机';
+  badge.textContent='数据·本机（独立版）';
   badge.classList.toggle('local',MODE==='local');
-  if('serviceWorker'in navigator){try{navigator.serviceWorker.register('sw.js');}catch(e){}}
+  if('serviceWorker'in navigator){try{navigator.serviceWorker.register('./sw.js');}catch(e){}}
   setupInstall();
   await load();
   refreshVehicleSelect();
