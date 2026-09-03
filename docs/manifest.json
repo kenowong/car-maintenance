@@ -1,14 +1,17 @@
 {
-  "name": "车管家 · 汽车维修保养记录",
+  "name": "车管家 · 汽车维保记录",
   "short_name": "车管家",
-  "description": "汽车维修保养记录与智能提醒：双维度保养提醒、多车档案、维保凭证、养车成本统计。",
+  "description": "汽车维修保养记录与智能提醒：双维度保养提醒、多车档案、维保凭证、养车成本统计。离线独立版，数据仅存本机。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
-  "background_color": "#f4f6f9",
-  "theme_color": "#3a5e7f",
+  "dir": "ltr",
   "lang": "zh-CN",
+  "background_color": "#eef4fb",
+  "theme_color": "#3a5e7f",
+  "categories": ["utilities", "productivity", "lifestyle", "business"],
   "icons": [
     {
       "src": "icon-192.png",
