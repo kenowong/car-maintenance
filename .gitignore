@@ -13,6 +13,9 @@ data/
 
 # Android 签名密钥（禁止入库！）
 android/carcare-release.keystore
+android-offline/carcare-release.keystore
+android-offline/app/build/
 # Android 构建产物
 android/app/build/
 android/.gradle/
+android-offline/build/
