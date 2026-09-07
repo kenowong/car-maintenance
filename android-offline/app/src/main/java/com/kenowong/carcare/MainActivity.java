@@ -34,6 +34,22 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 崩溃日志落盘（App 专属外部目录，无需存储权限，USB 连电脑可见），
+        // 便于远程排障；写完仍走系统默认崩溃流程
+        final Thread.UncaughtExceptionHandler prev = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            try {
+                java.io.File dir = getExternalFilesDir("crash");
+                if (dir != null) {
+                    java.io.PrintWriter w = new java.io.PrintWriter(
+                            new java.io.File(dir, "crash.txt"), "UTF-8");
+                    e.printStackTrace(w);
+                    w.close();
+                }
+            } catch (Exception ignored) {
+            }
+            if (prev != null) prev.uncaughtException(t, e);
+        });
         setContentView(R.layout.activity_main);
         web = (WebView) findViewById(R.id.web);
 
