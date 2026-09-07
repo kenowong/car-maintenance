@@ -916,6 +916,11 @@ function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.M
 function setupInstall(){
   const btn=document.getElementById('installBtn');
   const hint=document.getElementById('installHint');
+  // 完全离线 WebView 版内：本身就是独立 App，隐藏 PWA 安装入口
+  if(location.hostname==='appassets.androidplatform.net'){
+    const c=document.getElementById('installCard');if(c)c.classList.add('hidden');
+    return;
+  }
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;
     if(btn)btn.classList.remove('hidden');
     if(hint)hint.textContent='点击上方按钮，按系统提示「安装」即可生成独立 App。';
