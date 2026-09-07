@@ -85,6 +85,9 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setTextZoom(100);
         s.setSupportZoom(false);
+        // NAS 同步：页面 origin 是 https(appassets)，要允许它访问局域网 http://NAS 的
+        // 明文服务，必须放行混合内容（否则 fetch http://192.168.x.x 会被 WebView 拦截）
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             // 关闭系统强制深色，保持页面原配色
             //noinspection deprecation

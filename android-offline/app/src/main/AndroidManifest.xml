@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- NAS 同步：需访问局域网内 http://NAS:端口 的同步服务 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="车管家"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="false"
+        android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme">
 
         <activity

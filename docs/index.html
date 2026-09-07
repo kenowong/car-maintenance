@@ -45,6 +45,7 @@
   .veh-sel select{padding:7px 9px;font-size:13px}
   .mode-badge{font-size:10px;padding:3px 7px;border-radius:20px;background:var(--soft);color:var(--pri);white-space:nowrap;font-weight:600}
   .mode-badge.local{background:#eef7f0;color:var(--ok)}
+  .mode-badge.nas{background:#fdf3e0;color:#b06a00}
   /* main */
   main{padding:14px;max-width:780px;margin:0 auto;padding-bottom:84px}
   .screen .muted{color:var(--sub);font-size:13px}
@@ -272,6 +273,25 @@
           <label class="switch"><input type="checkbox" id="pushToggle" onchange="togglePush()"><i></i></label></div>
         <div class="note">开启后，应用打开时会检查提醒并通过系统通知推送到期/逾期事项。</div>
       </div>
+      <div class="card" id="nasCard">
+        <div class="row" style="align-items:center;margin-bottom:2px">
+          <b style="flex:1;font-size:15px">数据存储与 NAS 同步</b>
+          <label class="switch"><input type="checkbox" id="nasToggle" onchange="toggleNas()"><i></i></label>
+        </div>
+        <div class="muted" style="margin:2px 0 8px" id="nasModeLine">当前仅存本机，不连任何服务器</div>
+        <div id="nasFields" class="hidden">
+          <label>NAS 服务器地址</label>
+          <input id="nasBase" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" onchange="saveNasForm()" placeholder="http://192.168.1.100:8765">
+          <label>访问密钥（服务端设了才需要填）</label>
+          <input id="nasKey" type="password" autocomplete="off" autocapitalize="off" onchange="saveNasForm()" placeholder="可留空">
+          <div class="row" style="margin-top:10px">
+            <button class="btn" onclick="syncNow()">立即同步</button>
+            <button class="btn ghost" onclick="testNas()">测试连接</button>
+          </div>
+          <div class="note" id="nasState">状态：未开启</div>
+          <div class="note">开启后，每次改动会先存本机、再自动备份一份到 NAS，可多设备共用；首次连接自动采用较新的一份。NAS 上需先运行配套同步服务，见仓库 <code>nas-server/</code>。</div>
+        </div>
+      </div>
       <div class="card" id="installCard">
         <h3>安装到手机（独立 App）</h3>
         <div class="muted">添加到主屏后，本应用以全屏独立 App 运行：桌面有图标、可离线使用、数据存手机，无需每次开浏览器。</div>
@@ -294,7 +314,7 @@
           <button class="btn ghost" onclick="loadDemo()">填充示例数据</button>
         </div>
         <button class="btn danger" style="width:100%;margin-top:10px" onclick="resetAll()">清空全部数据</button>
-        <div class="note">NAS 模式下数据保存在服务器；手机独立模式下数据仅存本机浏览器，建议定期导出备份。</div>
+        <div class="note">仅本机存储时数据在手机里，换机/卸载前请先导出 CSV 存档；清空操作不可恢复。</div>
       </div>
     </section>
   </main>
@@ -357,17 +377,24 @@ function fmt(n){return (n||0).toLocaleString('zh-CN',{maximumFractionDigits:2})}
 function money(n){return '¥'+fmt(n)}
 function esc(s){s=s==null?'':s;return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 
-async function detectMode(){ MODE='local'; /* 离线独立版：不探测服务器，始终本机存储 */ }
+async function detectMode(){ MODE=(nasCfg().on&&nasCfg().base)?'nas':'local'; }
 async function load(){
+  // 1) 本机数据先装载（保证离线秒开、NAS 挂了也能用）
+  try{const raw=localStorage.getItem(KEY); if(raw){const d=JSON.parse(raw); if(d&&d.vehicles) DB=Object.assign(DB,d);}}catch(e){}
+  DB._ts=DB._ts||0; DB.priceBook=DB.priceBook||{};
+  // 2) 开启了 NAS：首次拉取做「取新」合并（服务器较新→用之；本机较新→稍后自动推回）
   if(MODE==='nas'){
     try{
-      const r=await fetch('/api/data',{signal:AbortSignal.timeout(1500)});
-      if(r.ok){const d=await r.json(); if(d&&d.vehicles) DB=Object.assign(DB,d);}
-    }catch(e){}
-  }else{
-    try{const raw=localStorage.getItem(KEY); if(raw) DB=Object.assign(DB,JSON.parse(raw));}catch(e){}
+      const srv=await nasFetch('/api/data',{method:'GET'},5000);
+      if(srv&&srv.vehicles){
+        srv._ts=srv._ts||0;
+        if(!DB.vehicles.length||srv._ts>DB._ts){
+          DB=Object.assign({},DB,srv); DB._ts=srv._ts;
+          try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){}
+        }
+      }
+    }catch(e){/* NAS 暂不可达：本机数据顶上，save() 会自动重试推送 */}
   }
-  DB.priceBook=DB.priceBook||{};
   if(!DB.vehicles.length){
     DB.vehicles.push({id:uid(),name:'我的爱车',model:'',plate:'',vin:'',buyDate:'',mileage:0,insuranceDue:'',inspectionDue:''});
     DB.rules=[
@@ -378,18 +405,118 @@ async function load(){
       {id:uid(),name:'保险续费',months:12,km:0},
       {id:uid(),name:'年检',months:12,km:0}
     ];
-    await save();
   }
   ensureDefaultRules(); // 补齐常用模板并按车型归属（老用户也能自动获得）
-  await save(); // 持久化补齐后的规则（含车型归属）
+  await save();          // 本机落盘；NAS 已开启时 save 内部会节流推送
   CUR=DB.vehicles[0].id;
 }
 async function save(){
-  if(MODE==='nas'){
-    try{await fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(DB)});return;}catch(e){}
-  }
+  DB._ts=Date.now();
   try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){toast('本机存储失败，可能空间不足');}
+  if(MODE==='nas') schedulePush(); // 数据总是先落本机，NAS 推送异步不阻塞
 }
+
+/* ============ NAS 同步（数据存本机 + 自动备份到 NAS 服务器） ============ */
+const NAS_KEY='carCareNAS_v1';
+const NAS_DEF={on:false,base:'',key:'',lastSync:0,lastErr:'',lastOk:false};
+function nasCfg(){try{const c=JSON.parse(localStorage.getItem(NAS_KEY));return Object.assign({},NAS_DEF,c||{});}catch(e){return Object.assign({},NAS_DEF);}}
+function saveNasCfg(c){try{localStorage.setItem(NAS_KEY,JSON.stringify(c));}catch(e){}}
+function nasBaseUrl(){return (nasCfg().base||'').replace(/\/+$/,'')}
+function nasKeyHdr(){const k=nasCfg().key;return k?{'X-Sync-Key':k}:{};}
+async function nasFetch(path,opt,ms){
+  const base=nasBaseUrl(); if(!base)throw new Error('未填服务器地址');
+  const ac=new AbortController(); const t=setTimeout(()=>ac.abort(),ms||6000);
+  try{
+    const r=await fetch(base+path,Object.assign({},opt||{},
+      {headers:Object.assign({},nasKeyHdr(),(opt&&opt.headers)||{}),signal:ac.signal}));
+    if(r.status===401)throw new Error('访问密钥错误');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.status===204?null:await r.json();
+  }finally{clearTimeout(t);}
+}
+let _pushTimer=null,_pushQ=Promise.resolve();
+function schedulePush(){ // 连续改动合并为一次推送（1.5s 防抖），串行防乱序
+  clearTimeout(_pushTimer);
+  _pushTimer=setTimeout(()=>{_pushTimer=null;_pushQ=_pushQ.then(()=>pushNas()).catch(()=>{});},1500);
+}
+async function pushNas(){
+  if(MODE!=='nas')return false;
+  try{
+    await nasFetch('/api/data',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(DB)},6000);
+    const c=nasCfg();c.lastSync=Date.now();c.lastErr='';c.lastOk=true;saveNasCfg(c);updateNasUI();return true;
+  }catch(e){
+    const c=nasCfg();c.lastErr=e.name==='AbortError'?'连接超时':'连接失败';c.lastOk=false;saveNasCfg(c);updateNasUI();return false;
+  }
+}
+async function pullNas(loud){
+  if(MODE!=='nas')return;
+  try{
+    const srv=await nasFetch('/api/data',{method:'GET'},6000);
+    if(!srv||!srv.vehicles)return;
+    srv._ts=srv._ts||0;
+    if(!DB.vehicles.length||srv._ts>DB._ts){
+      DB=Object.assign({},DB,srv); DB._ts=srv._ts;
+      try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){}
+      renderAll();
+      if(loud)toast('已从 NAS 取回最新数据');
+    }
+  }catch(e){ if(loud)toast('拉取失败：'+(e.message||e)); }
+}
+function saveNasForm(){
+  const c=nasCfg();
+  const nb=document.getElementById('nasBase'),nk=document.getElementById('nasKey');
+  if(nb)c.base=(nb.value||'').trim().replace(/\/+$/,'');
+  if(nk)c.key=(nk.value||'').trim();
+  saveNasCfg(c);
+  MODE=(c.on&&c.base)?'nas':'local';
+  return c;
+}
+function toggleNas(){
+  const nt=document.getElementById('nasToggle');
+  const c=saveNasForm(); c.on=nt?nt.checked:false; saveNasCfg(c);
+  MODE=(c.on&&c.base)?'nas':'local';
+  const nf=document.getElementById('nasFields'); if(nf)nf.classList.toggle('hidden',!c.on);
+  setModeBadge(); updateNasUI();
+  if(!c.on){toast('已切回仅本机存储');return;}
+  if(!c.base){toast('请填写 NAS 服务器地址');return;}
+  toast('NAS 同步已开启'); save(); setTimeout(()=>syncNow(),300);
+}
+async function syncNow(){
+  if(!(nasCfg().on&&nasCfg().base)){toast('请先开启 NAS 同步并填写地址');return;}
+  toast('正在同步…');
+  await pullNas(true);
+  await pushNas();
+  toast('同步完成');
+}
+async function testNas(){
+  const c=saveNasForm();
+  if(!c.base){toast('请先填写 NAS 服务器地址');return;}
+  const st=document.getElementById('nasState'); if(st)st.textContent='测试中…';
+  try{
+    await nasFetch('/api/ping',{method:'GET'},4000);
+    if(st)st.textContent='✅ NAS 服务在线，可以同步'; toast('连接正常');
+  }catch(e){ if(st)st.textContent='❌ '+e.message; toast('连接失败：'+e.message); }
+}
+function setModeBadge(){
+  const b=document.getElementById('modeBadge'); if(!b)return;
+  if(MODE==='nas'){b.textContent='数据·NAS';b.classList.add('nas');b.classList.remove('local');}
+  else{b.textContent='数据·本机';b.classList.add('local');b.classList.remove('nas');}
+}
+function updateNasUI(){
+  const c=nasCfg();
+  const sm=document.getElementById('setMode');
+  if(sm)sm.textContent=(MODE==='nas')?(c.lastOk?'NAS 同步（已连接）':'NAS 同步（连接异常）'):'本机独立存储';
+  const ml=document.getElementById('nasModeLine');
+  if(ml)ml.textContent=(MODE==='nas')?('NAS：'+(c.base||'待填地址')):'当前仅存本机，不连任何服务器';
+  const st=document.getElementById('nasState');
+  if(st){
+    if(!c.on)st.textContent='状态：未开启';
+    else if(c.lastErr)st.textContent='⚠️ 上次同步失败（'+c.lastErr+'）';
+    else if(c.lastSync)st.textContent='✅ 上次同步 '+fmtTime(c.lastSync);
+    else st.textContent='状态：已开启，等待首次同步';
+  }
+}
+function fmtTime(ts){const d=new Date(ts);return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
 
 /* ============ 工具 ============ */
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200)}
@@ -682,7 +809,7 @@ function renderFinance(){
 
 /* ============ 设置 ============ */
 function renderSettings(){
-  document.getElementById('setMode').textContent='本机独立存储（不连任何服务器）';
+  const c=nasCfg();
   document.getElementById('setVeh').textContent=DB.vehicles.length;
   document.getElementById('pushToggle').checked=!!DB.settings.push;
   document.getElementById('ruleList').innerHTML=DB.rules.length?DB.rules.map(r=>{
@@ -690,6 +817,12 @@ function renderSettings(){
     const tag=r.model?`<span class="rtag">${esc(r.model)}</span>`:'<span class="rtag muted-tag">通用</span>';
     return `<div class="kv"><span>${esc(r.name)} ${tag}</span><b>${cyc}</b></div>`;
   }).join(''):'<div class="muted">尚未设置保养规则。</div>';
+  // NAS 同步表单回填（输入框聚焦时不覆盖正在输入的值）
+  const nt=document.getElementById('nasToggle'); if(nt)nt.checked=!!c.on;
+  const nf=document.getElementById('nasFields'); if(nf)nf.classList.toggle('hidden',!c.on);
+  const nb=document.getElementById('nasBase'); if(nb&&document.activeElement!==nb)nb.value=c.base||'';
+  const nk=document.getElementById('nasKey'); if(nk&&document.activeElement!==nk)nk.value=c.key||'';
+  updateNasUI();
 }
 function togglePush(){
   DB.settings.push=document.getElementById('pushToggle').checked;
@@ -876,7 +1009,13 @@ function loadDemo(){
   DB.records.forEach(r=>r.items.forEach(i=>{if(typeof i==='object')DB.priceBook[i.name]={labor:i.labor,parts:i.parts,cost:i.labor+i.parts,shop:r.shop,date:r.date};}));
   CUR=vid;save();refreshVehicleSelect();renderAll();toast('示例数据已填充');
 }
-function resetAll(){if(!confirm('将清空全部数据，且不可恢复！确认？'))return;DB={vehicles:[],records:[],reminders:[],costs:[],rules:[],settings:{push:false}};save();load().then(()=>{refreshVehicleSelect();renderAll();toast('已清空');});}
+function resetAll(){
+  let tip='将清空全部数据，且不可恢复！确认？';
+  if(nasCfg().on)tip='已开启 NAS 同步：清空后服务器上的备份也会被覆盖成空库！建议先到「设置」关掉同步再清空。仍要继续吗？';
+  if(!confirm(tip))return;
+  DB={vehicles:[],records:[],reminders:[],costs:[],rules:[],priceBook:{},settings:{push:false}};
+  save();load().then(()=>{refreshVehicleSelect();renderAll();toast('已清空');});
+}
 
 /* ============ 导航与启动 ============ */
 function showScreen(s){
@@ -900,12 +1039,11 @@ function renderAll(){refreshVehicleSelect();renderReminders();renderArchive();re
 
 async function init(){
   await detectMode();
-  const badge=document.getElementById('modeBadge');
-  badge.textContent='数据·本机（独立版）';
-  badge.classList.toggle('local',MODE==='local');
+  setModeBadge();
   if('serviceWorker'in navigator){try{navigator.serviceWorker.register('./sw.js');}catch(e){}}
   setupInstall();
   await load();
+  updateNasUI(); // load 内首次同步后刷新连接状态
   refreshVehicleSelect();
   showScreen('reminders');
   checkPushOnLoad();
