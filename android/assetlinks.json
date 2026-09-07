@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kenowong.carcare",
+      "sha256_cert_fingerprints": [
+        "B7:52:12:39:7C:5E:22:CE:D9:26:E5:26:AA:29:6B:1A:B0:12:DE:1C:0C:ED:33:FC:4C:6C:2B:DC:09:AD:B4:0A"
+      ]
+    }
+  }
+]

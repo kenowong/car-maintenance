@@ -1,0 +1,50 @@
+{
+  "packageId": "com.kenowong.carcare",
+  "host": "kenowong.github.io",
+  "name": "车管家 · 汽车维保记录",
+  "launcherName": "车管家",
+  "display": "standalone",
+  "themeColor": "#3A5E7F",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#EEF4FB",
+  "enableNotifications": true,
+  "startUrl": "/car-maintenance/",
+  "iconUrl": "https://kenowong.github.io/car-maintenance/icon-512.png",
+  "maskableIconUrl": "https://kenowong.github.io/car-maintenance/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "E:\\WorkBuddy\\2026-09-02-13-23-20\\car-maintenance\\android\\carcare-release.keystore",
+    "alias": "carcare"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://kenowong.github.io/car-maintenance/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://kenowong.github.io/car-maintenance/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "appVersion": "1"
+}

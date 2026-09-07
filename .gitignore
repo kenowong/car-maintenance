@@ -10,3 +10,9 @@ __pycache__/
 _video_frames/
 data/
 .workbuddy/
+
+# Android 签名密钥（禁止入库！）
+android/carcare-release.keystore
+# Android 构建产物
+android/app/build/
+android/.gradle/
