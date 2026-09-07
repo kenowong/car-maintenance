@@ -19,3 +19,4 @@ android-offline/app/build/
 android/app/build/
 android/.gradle/
 android-offline/build/
+android-offline/.gradle/
