@@ -12,6 +12,17 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme">
 
+        <!-- 网页 <input type="file"> 拍照临时文件共享（收据/发票凭证拍照） -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.kenowong.carcare.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

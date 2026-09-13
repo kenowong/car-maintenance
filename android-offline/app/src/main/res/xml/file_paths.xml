@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 共享路径：仅供拍照临时输出用（cache/carcare/ 目录）
+-->
+<paths>
+    <cache-path name="photos" path="carcare/" />
+</paths>
