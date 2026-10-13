@@ -10,8 +10,8 @@ android {
         applicationId "com.kenowong.carcare"
         minSdkVersion 21
         targetSdkVersion 34
-        versionCode 7
-        versionName "2.1-offline"
+        versionCode 8
+        versionName "2.2-offline"
     }
 
     signingConfigs {

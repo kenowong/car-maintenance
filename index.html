@@ -315,27 +315,55 @@
 <script>
 /* ============ 数据层 ============ */
 const KEY='carCareDB_v1';
-const CATALOG={
+/* 车辆动力类型：fuel=燃油 / hev=油电混动 / phev=插电混动 / ev=纯电 */
+const POWER_LABEL={fuel:'燃油',hev:'油电混动',phev:'插电混动',ev:'纯电'};
+const normPower=p=>POWER_LABEL[p]?p:'fuel';
+/* 维保项目目录：燃油项（含发动机油液）、电车项（三电系统）、通用项，按动力类型组装 */
+const CATALOG_FUEL={
   '常规保养':['更换机油','机油滤清器','空气滤清器','空调滤清器','燃油滤清器','火花塞','防冻液/冷却液更换','助力转向油更换','正时皮带更换','附件皮带更换','节气门清洗','喷油嘴清洗','进气道清洗','三元催化清洗','玻璃水加注','电瓶检测/保养'],
-  '深度保养':['发动机内部清洗','润滑系统深度养护','变速箱油循环机更换','刹车油循环机更换','冷却系统深度清洗','燃油系统深度清洗','燃烧室积碳清洗','进排气系统清洗','三元催化器深度清洗','空调蒸发箱清洗','发动机舱深度清洁养护'],
-  '易损件更换':['轮胎换位','轮胎更换','电瓶更换','雨刮片更换','前刹车片更换','后刹车片更换','刹车盘更换','灯泡更换','保险丝更换','离合器片更换','减震器更换','球头/稳定杆拉杆更换','底盘衬套更换'],
+  '深度保养':['发动机内部清洗','润滑系统深度养护','变速箱油循环机更换','刹车油循环机更换','冷却系统深度清洗','燃油系统深度清洗','燃烧室积碳清洗','进排气系统清洗','三元催化器深度清洗','空调蒸发箱清洗','发动机舱深度清洁养护']
+};
+const CATALOG_EV={
+  '三电检测':['动力电池健康检测(SOH)','电池电芯压差检测','驱动电机检测','电机控制器/电控检测','BMS电池管理系统检测','高压线束/接插件检测','高压系统绝缘检测','充电口/充电系统检测','车载充电机(OBC)检测','热管理(电池/电机)系统检测','OTA/车机软件升级'],
+  '电车保养':['空调滤清器更换','刹车油更换','减速器油更换','电池/电机冷却液更换','12V蓄电池检测/更换','玻璃水加注','空调系统清洗杀菌']
+};
+const CATALOG_COMMON={
+  '易损件更换':['轮胎换位','轮胎更换','刹车片更换','刹车盘更换','电瓶更换','雨刮片更换','灯泡更换','保险丝更换','减震器更换','球头/稳定杆拉杆更换','底盘衬套更换'],
   '美容清洁':['全车打蜡','贴膜镀晶','室内杀菌','内饰清洁','漆面抛光','漆面封釉','真皮座椅护理','发动机舱清洗','大灯翻新','玻璃镀膜','轮毂清洗镀膜','全车精洗','臭氧消毒','空调管路清洗杀菌','底盘装甲喷涂','车身改色贴膜']
 };
+function catalogFor(power){
+  power=normPower(power);
+  const out={};
+  if(power==='ev'){Object.assign(out,CATALOG_EV);}                       // 纯电：仅三电 + 通用
+  else{Object.assign(out,CATALOG_FUEL);                                  // 燃油：发动机项 + 通用
+    if(power==='hev'||power==='phev')Object.assign(out,CATALOG_EV);}     // 混动：燃油 + 三电 + 通用
+  Object.assign(out,CATALOG_COMMON);
+  return out;
+}
+const CATALOG=catalogFor('fuel'); // 兼容默认引用
 let DB={vehicles:[],records:[],reminders:[],costs:[],rules:[],priceBook:{},settings:{push:false}};
 let MODE='local'; // 'nas' | 'local'
 let CUR=''; // current vehicle id
 let receiptB64='';
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
-// 常用保养规则模板（提醒中心「模板气泡」的数据源；按车型周期预设，用户只填上次日期/里程）
-const DEFAULT_RULES=[
+// 常用保养规则模板（提醒中心「模板气泡」的数据源；按动力类型分组，用户只填上次日期/里程）
+const RULES_FUEL=[
   {name:'机油+机滤',months:6,km:5000},
   {name:'空气滤清器',months:12,km:10000},
-  {name:'空调滤清器',months:12,km:10000},
-  {name:'刹车油',months:24,km:40000},
   {name:'火花塞',months:30,km:40000},
   {name:'防冻液/冷却液',months:24,km:40000},
-  {name:'变速箱油',months:48,km:60000},
+  {name:'变速箱油',months:48,km:60000}
+];
+const RULES_EV=[
+  {name:'三电系统检测',months:12,km:0},
+  {name:'减速器油',months:48,km:60000},
+  {name:'电池/电机冷却液',months:48,km:60000},
+  {name:'12V蓄电池',months:36,km:0}
+];
+const RULES_COMMON=[
+  {name:'空调滤清器',months:12,km:10000},
+  {name:'刹车油',months:24,km:40000},
   {name:'轮胎换位',months:0,km:10000},
   {name:'刹车片',months:0,km:40000},
   {name:'电瓶',months:36,km:60000},
@@ -343,13 +371,24 @@ const DEFAULT_RULES=[
   {name:'保险续费',months:12,km:0},
   {name:'年检',months:12,km:0}
 ];
+function rulesFor(power){
+  power=normPower(power);
+  const arr=power==='ev'?RULES_EV.concat(RULES_COMMON)
+    :(power==='hev'||power==='phev')?RULES_FUEL.concat(RULES_EV,RULES_COMMON)
+    :RULES_FUEL.concat(RULES_COMMON);
+  const seen={};return arr.filter(x=>seen[x.name]?false:(seen[x.name]=1));  // 去重（如空调滤清器）
+}
+const DEFAULT_RULES=rulesFor('fuel'); // 兼容默认引用
 function ensureDefaultRules(){
   DB.rules=DB.rules||[];
   const primary=DB.vehicles[0]?DB.vehicles[0].name:'';
-  DEFAULT_RULES.forEach(d=>{
-    const r=DB.rules.find(x=>x.name===d.name);
-    if(!r){DB.rules.push({id:uid(),name:d.name,months:d.months,km:d.km,model:primary});}
-    else if(r.model===undefined){r.model=primary;} // 老规则补齐车型归属
+  DB.rules.forEach(r=>{if(r.model===undefined)r.model=primary;}); // 先给老规则补齐车型归属
+  // 再按每辆车的动力类型补齐对应模板（燃油/混动/纯电各一套）
+  DB.vehicles.forEach(v=>{
+    rulesFor(v.power).forEach(d=>{
+      const r=DB.rules.find(x=>x.name===d.name&&((x.model||'')===v.name));
+      if(!r)DB.rules.push({id:uid(),name:d.name,months:d.months,km:d.km,model:v.name});
+    });
   });
 }
 function today(){return new Date().toISOString().slice(0,10)}
@@ -375,7 +414,7 @@ async function load(){
   }
   DB.priceBook=DB.priceBook||{};
   if(!DB.vehicles.length){
-    DB.vehicles.push({id:uid(),name:'我的爱车',model:'',plate:'',vin:'',buyDate:'',mileage:0,insuranceDue:'',inspectionDue:''});
+    DB.vehicles.push({id:uid(),name:'我的爱车',model:'',plate:'',vin:'',buyDate:'',mileage:0,insuranceDue:'',inspectionDue:'',power:'fuel'});
     DB.rules=[
       {id:uid(),name:'机油+机滤',months:6,km:5000},
       {id:uid(),name:'空调滤清器',months:12,km:10000},
@@ -386,6 +425,7 @@ async function load(){
     ];
     await save();
   }
+  DB.vehicles.forEach(v=>{if(!v.power)v.power='fuel';}); // 老数据补齐动力类型（默认燃油）
   ensureDefaultRules(); // 补齐常用模板并按车型归属（老用户也能自动获得）
   await save(); // 持久化补齐后的规则（含车型归属）
   CUR=DB.vehicles[0].id;
@@ -494,13 +534,17 @@ let curCat='常规保养';
 let curBill={};      // 本次登记：{ 项目名:{labor,parts} }
 let customNames=[];  // 手动补充项目名（当前类别下）
 function renderCatTabs(){
-  document.getElementById('catTabs').innerHTML=Object.keys(CATALOG).map(c=>`<button class="${c===curCat?'on':''}" onclick="pickCat('${c}')">${c}</button>`).join('');
+  const cat=catalogFor(curVehicle().power);      // 按当前车辆动力类型取目录
+  const keys=Object.keys(cat);
+  if(keys.indexOf(curCat)<0)curCat=keys[0];     // 切换动力类型后修正当前分类
+  document.getElementById('catTabs').innerHTML=keys.map(c=>`<button class="${c===curCat?'on':''}" onclick="pickCat('${c}')">${c}</button>`).join('');
   renderCatItems();
 }
 function pickCat(c){curCat=c;curBill={};customNames=[];renderCatTabs();renderItemBill();}
 function renderCatItems(){
+  const cat=catalogFor(curVehicle().power);
   const box=document.getElementById('catItems');
-  box.innerHTML=CATALOG[curCat].map(it=>`<button type="button" class="ichip" data-item="${esc(it)}" onclick="toggleItem(this)">${esc(it)}</button>`).join('');
+  box.innerHTML=(cat[curCat]||[]).map(it=>`<button type="button" class="ichip" data-item="${esc(it)}" onclick="toggleItem(this)">${esc(it)}</button>`).join('');
   box.scrollLeft=0;
   updateItemCount();
 }
@@ -599,6 +643,7 @@ function renderArchive(){
         <span class="v-edit">编辑 ›</span>
       </div>
       <div class="kv"><span>车型</span><b>${esc(v.model)||'—'}</b></div>
+      <div class="kv"><span>动力</span><b>${POWER_LABEL[v.power]||'燃油'}</b></div>
       <div class="kv"><span>车牌</span><b>${esc(v.plate)||'—'}</b></div>
       <div class="kv"><span>当前里程</span><b>${fmt(v.mileage)} km</b></div>
       <div class="kv"><span>保险到期</span><b>${esc(v.insuranceDue)||'—'}</b></div>
@@ -721,11 +766,13 @@ function closeModal(){document.getElementById('modalRoot').innerHTML=''}
 const PROVINCES=['京','津','沪','渝','冀','豫','云','辽','黑','湘','皖','鲁','新','苏','浙','赣','鄂','桂','甘','晋','蒙','陕','吉','闽','贵','粤','青','藏','川','宁','琼'];
 function splitPlate(p){const m=(p||'').match(/^([一-龥]+)/);const prov=m?m[1]:'';const no=(p||'').replace(/[一-龥·•・\s]/g,'').toUpperCase();return {prov,no};}
 function openVehicleModal(id){
-  const v=id?DB.vehicles.find(x=>x.id===id):{name:'',model:'',plate:'',vin:'',buyDate:'',mileage:0,insuranceDue:'',inspectionDue:''};
+  const v=id?DB.vehicles.find(x=>x.id===id):{name:'',model:'',plate:'',vin:'',buyDate:'',mileage:0,insuranceDue:'',inspectionDue:'',power:'fuel'};
   const sp=splitPlate(v.plate);
   openModal(`<h2>${id?'编辑':'添加'}车辆</h2>
     <label>名称（必填）</label><input id="vName" value="${esc(v.name)}" placeholder="如：家用轿车 / 沪A·12345">
     <label>车型</label><input id="vModel" value="${esc(v.model)}" placeholder="如：丰田 卡罗拉 1.2T">
+    <label>动力类型</label>
+    <select id="vPower">${Object.keys(POWER_LABEL).map(k=>`<option value="${k}"${(v.power||'fuel')===k?' selected':''}>${POWER_LABEL[k]}</option>`).join('')}</select>
     <label>车牌</label>
     <div class="plate-row">
       <select id="vPlateProv" class="plate-prov">${sp.prov?'<option value="">省</option>':'<option value="" selected>省</option>'}${PROVINCES.map(p=>`<option value="${p}"${sp.prov===p?' selected':''}>${p}</option>`).join('')}</select>
@@ -743,7 +790,7 @@ function openVehicleModal(id){
 function saveVehicle(id){
   const name=document.getElementById('vName').value.trim();if(!name){toast('请填写车辆名称');return;}
   const plateProv=document.getElementById('vPlateProv').value;const plateNo=document.getElementById('vPlateNo').value.trim().toUpperCase();const plate=plateProv?(plateProv+'·'+plateNo):plateNo;
-  const data={name,model:document.getElementById('vModel').value.trim(),plate,
+  const data={name,model:document.getElementById('vModel').value.trim(),power:document.getElementById('vPower').value||'fuel',plate,
     vin:document.getElementById('vVin').value.trim(),buyDate:document.getElementById('vBuy').value,
     mileage:parseFloat(document.getElementById('vMil').value)||0,insuranceDue:document.getElementById('vIns').value,inspectionDue:document.getElementById('vYr').value};
   if(id){Object.assign(DB.vehicles.find(x=>x.id===id),data);}
@@ -751,6 +798,7 @@ function saveVehicle(id){
   // 保险/年检自动生成提醒
   if(data.insuranceDue){ensureDateReminder(data.id,'保险续费',data.insuranceDue);}
   if(data.inspectionDue){ensureDateReminder(data.id,'年检',data.inspectionDue);}
+  ensureDefaultRules(); // 动力类型变化时补齐对应模板
   save();closeModal();refreshVehicleSelect();renderAll();toast('车辆已保存');
 }
 function ensureDateReminder(vid,name,due){
@@ -872,7 +920,7 @@ function importData(){
 function loadDemo(){
   if(!confirm('将填充示例车辆与数据（不覆盖现有车辆）？'))return;
   const vid=uid();
-  DB.vehicles.push({id:vid,name:'示例·大众朗逸',model:'大众 朗逸 1.5L',plate:'沪A·D8888',vin:'LV2A23B8XN1234567',buyDate:'2023-05-01',mileage:32800,insuranceDue:addMonths(today(),3),inspectionDue:addMonths(today(),8)});
+  DB.vehicles.push({id:vid,name:'示例·大众朗逸',model:'大众 朗逸 1.5L',plate:'沪A·D8888',vin:'LV2A23B8XN1234567',buyDate:'2023-05-01',mileage:32800,insuranceDue:addMonths(today(),3),inspectionDue:addMonths(today(),8),power:'fuel'});
   DB.reminders.push({id:uid(),vehicleId:vid,name:'机油+机滤',basis:'both',months:6,km:5000,lastDate:addMonths(today(),-5),lastMileage:28000,enabled:true});
   DB.reminders.push({id:uid(),vehicleId:vid,name:'保险续费',basis:'date',months:12,km:0,lastDate:addMonths(today(),-9),lastMileage:0,enabled:true});
   DB.reminders.push({id:uid(),vehicleId:vid,name:'刹车片检查',basis:'mileage',months:0,km:40000,lastDate:addMonths(today(),-2),lastMileage:28000,enabled:true});
